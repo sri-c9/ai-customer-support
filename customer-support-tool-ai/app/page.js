@@ -13,6 +13,50 @@ export default function Home() {
 
   const [message, setMessage] = useState("");
 
+  const sendMessage = async () => {
+    setMessage("");
+    setMessages((prevMessages) => [
+      ...prevMessages,
+      { role: "user", content: message },
+      { role: "assistant", content: "" }, // Placeholder for assistant's response
+    ]);
+
+    const response = fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        ...messages,
+        {
+          role: "user",
+          content: message,
+        },
+      ]),
+    }).then(async (res) => {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      let result = "";
+      return reader.read().then(function processText({ done, value }) {
+        if (done) return result;
+        const text = decoder.decode(value || new Int8Array(), { stream: true });
+        setMessages((prevMessages) => {
+          let lastMessage = prevMessages[prevMessages.length - 1];
+          let otherMessages = prevMessages.slice(0, prevMessages.length - 1);
+          return [
+            ...otherMessages,
+            {
+              ...lastMessage,
+              content: lastMessage.content + text,
+            },
+          ];
+        });
+        return reader.read().then(processText);
+      });
+    });
+  };
+
   return (
     <Box
       width="100vw"
@@ -60,14 +104,22 @@ export default function Home() {
             </Box>
           ))}
         </Stack>
-        <Stack direction={"row"} spacing={2}>
+        <Stack
+          direction={"row"}
+          spacing={2}
+        >
           <TextField
             label="message"
             fullWidth
             value={message}
-            onChange={(e) => setMessages(e.target.value)}
+            onChange={(e) => setMessage(e.target.value)}
           />
-          <Button variant="contained">⇧</Button>
+          <Button
+            variant="contained"
+            onClick={sendMessage}
+          >
+            ⇧
+          </Button>
         </Stack>
       </Stack>
     </Box>

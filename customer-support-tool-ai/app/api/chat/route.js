@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import OpenAI from "openai"; // Ensure that this is correctly imported and set up
 
 const systemPrompt = `
 You are a college counselor bot for NextLevel Transfer, an organization dedicated to assisting students at community colleges in transferring to top universities. Your role is to provide guidance, information, and support to students throughout the transfer process. Here are your key functions and guidelines:
@@ -32,44 +32,93 @@ Communication and Availability:
 Remember, your primary goal is to empower and support students in achieving their academic and transfer objectives, ensuring they have the best possible chance of success.
 `;
 
+// export async function POST(req) {
+//   const openai = new OpenAI(req);
+//   const data = await req.json();
+
+//   // start completion
+//   const completion = await openai.chat.completion.create({
+//     messages: [
+//       {
+//         role: "system",
+//         content: systemPrompt,
+//       },
+//       ...data,
+//     ],
+//     model: "gpt-4o-mini",
+//     stream: true,
+//   });
+
+//   // once you have completion, start streaming
+//   const stream = new ReadableStream({
+//     async start(controller) {
+//       const encoder = new TextEncoder();
+//       try {
+//         for await (const chunk of completion) {
+//           const content = chunk.choices[0].delta.content;
+
+//           if (content) {
+//             const text = encoder.encode(content);
+//             controller.enqueue(text);
+//           }
+//         }
+//       } catch (error) {
+//         controller.error(error);
+//       } finally {
+//         controller.close();
+//       }
+//     },
+//   });
+
+//   return new NextResponse(stream);
+// }
+
 export async function POST(req) {
-  const openai = new OpenAI(req);
+  // Correctly initialize the OpenAI object (without req)
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY, // Make sure the API key is correctly configured
+  });
+
   const data = await req.json();
 
+  try {
+    // Start completion
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Correct model name or as per your API usage
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        ...data,
+      ],
+      stream: true,
+    });
 
-  // start completion 
-  const completion = await openai.chat.completion.create({
-    messages: [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      ...data,
-    ],
-    model: "gpt-4o-mini",
-    stream: true,
-  });
+    // Once you have completion, start streaming
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        try {
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content; // Handle potential undefined
 
-  // once you have completion, start streaming
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      try {
-        for await (const chunk of completion) {
-          const content = chunk.choices[0].delta.content;
-
-          if (content) {
-            const text = encoder.encode(content);
-            controller.enqueue(text);
+            if (content) {
+              const text = encoder.encode(content);
+              controller.enqueue(text);
+            }
           }
+        } catch (error) {
+          controller.error(error);
+        } finally {
+          controller.close();
         }
-      } catch (error) {
-        controller.error(error);
-      } finally {
-        controller.close();
-      }
-    },
-  });
+      },
+    });
 
-  return new NextResponse(stream);
+    return new NextResponse(stream);
+  } catch (error) {
+    console.error("Error during completion:", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
 }
